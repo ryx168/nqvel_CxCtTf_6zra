@@ -1,0 +1,59 @@
+name: Deploy static site
+
+# Every push to main redeploys. Live in well under a minute.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sync site to object storage
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          # --delete keeps the bucket an exact mirror of the repo, so removing a
+          # page here removes it from the live site. Editor state and form
+          # submissions live in a SEPARATE bucket for exactly this reason.
+          aws s3 sync . "s3://${{ secrets.SITE_BUCKET }}" \
+            --endpoint-url "$ENDPOINT" \
+            --delete \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "tools/*" \
+            --exclude "README.md" \
+            --no-progress
+
+      - name: Verify the site responds
+        run: |
+          set -euo pipefail
+          sleep 5
+          for path in "/" "/join-ccttf/" "/about-ccttf-en/"; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ secrets.SITE_HOST }}${path}")
+            echo "${path} -> ${code}"
+            [ "$code" = "200" ] || { echo "FAILED: ${path} -> ${code}"; exit 1; }
+          done
+
+      - name: The membership form must still post somewhere real
+        run: |
+          set -euo pipefail
+          # The old form was a plugin that silently stopped working. This build
+          # replaced it with a plain form; if a publish ever drops the form or
+          # its action, applications vanish with no error. Fail loudly instead.
+          grep -q 'action="/apply"' join-ccttf/index.html \
+            || { echo "FAILED: the membership form lost its action"; exit 1; }
+          grep -qi 'credit card' join-ccttf/index.html \
+            && { echo "FAILED: the retired payment field is back"; exit 1; }
+          echo "membership form intact"
