@@ -80,10 +80,26 @@ wget --mirror --page-requisites --convert-links --adjust-extension \
 # wget only follows links, so pages that nothing links to are missed. The
 # sitemap is the authority -- fetch anything the crawl did not reach.
 # (Count with grep -o: the XML is one line, so grep -c would report 1.)
-curl -fsS "http://${LIVE_HOST}/wp-sitemap-posts-page-1.xml" -o /tmp/sm.xml 2>/dev/null || true
-curl -fsS "http://${LIVE_HOST}/wp-sitemap-posts-post-1.xml" -o /tmp/sm2.xml 2>/dev/null || true
-cat /tmp/sm.xml /tmp/sm2.xml 2>/dev/null \
-  | grep -o '<loc>[^<]*' | sed 's/<loc>//' | sort -u > /tmp/sitemap-urls.txt || true
+# Sitemap discovery must cope with two shapes: the core sitemap (5.5+), and a
+# plugin sitemap INDEX that lists only child sitemaps. Reading <loc> from an
+# index gives sitemap URLs rather than pages, so the orphan check silently
+# finds nothing and every unlinked page is quietly dropped from the export.
+: > /tmp/sitemap-urls.txt
+for name in wp-sitemap.xml sitemap_index.xml sitemap.xml wp-sitemap-posts-page-1.xml wp-sitemap-posts-post-1.xml; do
+  body=$(curl -fsS -m 30 "http://${LIVE_HOST}/${name}" 2>/dev/null || true)
+  [ -n "$body" ] || continue
+  echo "  sitemap found: ${name}"
+  if printf '%s' "$body" | grep -q "<sitemapindex"; then
+    for child in $(printf '%s' "$body" | grep -o "<loc>[^<]*" | sed "s/<loc>//"); do
+      echo "    child: ${child##*/}"
+      curl -fsS -m 30 "$child" 2>/dev/null | grep -o "<loc>[^<]*" | sed "s/<loc>//" >> /tmp/sitemap-urls.txt || true
+    done
+  else
+    printf '%s' "$body" | grep -o "<loc>[^<]*" | sed "s/<loc>//" >> /tmp/sitemap-urls.txt
+  fi
+done
+grep -v '[.]xml$' /tmp/sitemap-urls.txt 2>/dev/null | sort -u > /tmp/sm-clean.txt || true
+mv -f /tmp/sm-clean.txt /tmp/sitemap-urls.txt
 echo "sitemap lists $(wc -l < /tmp/sitemap-urls.txt) urls"
 while read -r u; do
   [ -n "$u" ] || continue
