@@ -41,6 +41,23 @@ for extra in ${EXTRA_DIRS:-}; do
   fi
 done
 
+# Must-use plugins left behind by a previous hosting platform. They reference
+# constants that only exist on that platform; on PHP 5 an undefined constant
+# was a warning, on PHP 8 it is fatal, so the site 500s before it renders a
+# single page. They do nothing useful anywhere else.
+MU="$APP_DIR/wp-content/mu-plugins"
+if [ -d "$MU" ]; then
+  n=0
+  for f in "$MU"/*; do
+    [ -e "$f" ] || continue
+    if grep -rqil "wpengine\|WPE_CLUSTER_ID\|wpe_" "$f" 2>/dev/null; then
+      echo "  dropping platform plugin: $(basename "$f")"
+      rm -rf "$f"; n=$((n+1))
+    fi
+  done
+  echo "platform must-use plugins removed: $n"
+fi
+
 echo "--- wp-config.php ---"
 # WP_HOME/WP_SITEURL as constants beat whatever is stored in the database.
 # They are set to the LIVE host because the admin is reached through it -- the
