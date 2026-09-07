@@ -1,3 +1,0 @@
-# These run on a Linux runner; a CR would break the shell.
-*.sh text eol=lf
-*.yml text eol=lf
