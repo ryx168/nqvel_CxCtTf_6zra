@@ -54,7 +54,7 @@ grep -n "WP_HOME\|WP_SITEURL" "$APP_DIR/wp-config.php"
 if ! curl -s -o /dev/null --max-time 5 "http://127.0.0.1/"; then
   echo "php server is not up -- starting one for the export"
   export PHP_CLI_SERVER_WORKERS=6
-  setsid nohup php -S 0.0.0.0:80 -t "$APP_DIR" "$APP_DIR/router.php" > /tmp/php-export.log 2>&1 &
+  setsid nohup "${PHP_BIN:-php}" -S 0.0.0.0:80 -t "$APP_DIR" "$APP_DIR/router.php" > /tmp/php-export.log 2>&1 &
 fi
 for _ in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${LIVE_HOST}" http://127.0.0.1/)

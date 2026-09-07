@@ -22,7 +22,16 @@ echo "--- app core ---"
 # site's own, so the look is unchanged; core is disposable and rebuilt each
 # session. If a theme or plugin ever breaks on a new core, pin a version here.
 mkdir -p "$APP_DIR"
-curl -fsSL https://wordpress.org/latest.tar.gz -o /tmp/wp.tar.gz
+# Core is pinned per site. Pulling the newest release would upgrade the
+# database on first load and take the old plugin stack with it; this site's
+# plugins are from 2018 and do not survive that.
+if [ -n "${WP_VERSION:-}" ]; then
+  CORE_URL="https://wordpress.org/wordpress-${WP_VERSION}.tar.gz"
+else
+  CORE_URL="https://wordpress.org/latest.tar.gz"
+fi
+echo "core source: $CORE_URL"
+curl -fsSL "$CORE_URL" -o /tmp/wp.tar.gz
 tar xzf /tmp/wp.tar.gz -C "$APP_DIR" --strip-components=1
 rm -rf "$APP_DIR/wp-content"
 tar xzf /tmp/wp-content.tar.gz -C "$APP_DIR"
@@ -188,7 +197,7 @@ grep -q "$LIVE_HOST" /etc/hosts || echo "127.0.0.1 $LIVE_HOST" >> /etc/hosts
 # Without workers, php -S is single-threaded and wp-admin deadlocks the moment
 # it makes a second request to itself (admin-ajax, cron).
 export PHP_CLI_SERVER_WORKERS=6
-setsid nohup php -S 0.0.0.0:80 -t "$APP_DIR" "$APP_DIR/router.php" > /tmp/php.log 2>&1 &
+setsid nohup "${PHP_BIN:-php}" -S 0.0.0.0:80 -t "$APP_DIR" "$APP_DIR/router.php" > /tmp/php.log 2>&1 &
 
 # Ask as the live hostname. A bare request to 127.0.0.1 gets a 301, because
 # WP_HOME is the live host and the application canonicalises to it -- that is correct
