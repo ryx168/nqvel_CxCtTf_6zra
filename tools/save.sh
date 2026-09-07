@@ -112,6 +112,17 @@ while read -r u; do
   fi
 done < /tmp/sitemap-urls.txt
 
+# wget saves a versioned asset under its literal URL, so "style.css?ver=1.2"
+# becomes a filename containing a question mark, while --convert-links rewrites
+# the page to reference the clean name. The clean name may not exist at all, so
+# every stylesheet and font 404s. These also cannot be stored as object keys or
+# uploaded as artifacts. Promote each to its clean name, then drop the original.
+find "$OUT" -name '*[?]*' -type f | while read -r f; do
+  clean="${f%%\?*}"
+  [ -f "$clean" ] || cp "$f" "$clean"
+  rm -f "$f"
+done
+
 # Make the mirror portable: absolute links to the live host become root paths,
 # and the discovery <link> tags for dead endpoints go away.
 find "$OUT" -name '*.html' -print0 | xargs -0 perl -pi -e "
