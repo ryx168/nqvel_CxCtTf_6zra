@@ -52,6 +52,8 @@ env:
   APP_DIR: /opt/app
   # This site's tables are not on the default prefix.
   TABLE_PREFIX: ${{ secrets.TABLE_PREFIX }}
+  # Retired here: the membership form is now a static form on the site.
+  DROP_PLUGINS: gravityforms gravityformsstripe
 
 jobs:
   session:

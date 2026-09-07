@@ -58,6 +58,14 @@ if [ -d "$MU" ]; then
   echo "platform must-use plugins removed: $n"
 fi
 
+# Plugins that cannot run on a current PHP, or that this build has retired.
+# Named explicitly rather than guessed: dropping a plugin changes what the
+# pages render, so it has to be a decision, not a heuristic.
+for pl in ${DROP_PLUGINS:-}; do
+  d="$APP_DIR/wp-content/plugins/$pl"
+  if [ -e "$d" ]; then rm -rf "$d"; echo "  dropped plugin: $pl"; fi
+done
+
 echo "--- wp-config.php ---"
 # WP_HOME/WP_SITEURL as constants beat whatever is stored in the database.
 # They are set to the LIVE host because the admin is reached through it -- the
